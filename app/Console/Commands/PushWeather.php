@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Services\LineBotService;
-use App\Http\Services\ReptileService;
+use App\Services\LineBotService;
+use App\Services\ReptileService;
 use Illuminate\Console\Command;
 
 class PushWeather extends Command

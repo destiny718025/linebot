@@ -2,8 +2,8 @@
 
 namespace App\Providers;
 
-use App\Http\Services\LineBotService;
-use App\Http\Services\ReptileService;
+use App\Services\LineBotService;
+use App\Services\ReptileService;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider

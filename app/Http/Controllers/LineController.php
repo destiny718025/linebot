@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Services\LineBotService;
+use App\Services\LineBotService;
 use Illuminate\Http\Request;
 
 class LineController extends Controller
@@ -28,5 +28,10 @@ class LineController extends Controller
                 'message' => $this->lineBotService->errorMsg
             ]);
         }
+    }
+
+    public function webhook1(Request $request)
+    {
+        $this->lineBotService->webhook1($request);
     }
 }

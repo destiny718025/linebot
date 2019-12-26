@@ -2,8 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Http\Services\LineBotService;
-use App\Http\Services\ReptileService;
+use App\Services\LineBotService;
+use App\Services\ReptileService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\WithFaker;
 use Tests\TestCase;

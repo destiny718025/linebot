@@ -16,4 +16,4 @@ Route::get('/', function () {
 });
 
 
-//Route::post('webhook','LineController@webhook');
+Route::get('webhook1','LineController@webhook1');
