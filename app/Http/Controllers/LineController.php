@@ -2,67 +2,31 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Services\LineBotService;
 use Illuminate\Http\Request;
-use LINE\LINEBot\Event\MessageEvent;
-use LINE\LINEBot\MessageBuilder\TextMessageBuilder;
 
 class LineController extends Controller
 {
-    protected $bot;
+    protected $lineBot;
+    protected $lineBotService;
 
-    public function __construct()
+    public function __construct(LineBotService $lineBotService)
     {
-        $httpClient = new \LINE\LINEBot\HTTPClient\CurlHTTPClient(config('linebot.channel.access_token'));
-        $this->bot = new \LINE\LINEBot($httpClient, ['channelSecret' => config('linebot.channel.secret')]);
+        $this->lineBot = app('LineBot');
+        $this->lineBotService = $lineBotService;
     }
 
     public function webhook(Request $request)
     {
-        $signature = $request->header(\LINE\LINEBot\Constant\HTTPHeader::LINE_SIGNATURE);
-        $body = $request->getContent();
-
-        try {
-            $events = $this->bot->parseEventRequest($body, $signature);
-        } catch (\Exception $e) {
+        if($this->lineBotService->webhook($request)) {
+            return response()->json([
+                'status' => true
+            ]);
+        } else {
             return response()->json([
                 'status' => false,
-                'message' => $e->getMessage()
+                'message' => $this->lineBotService->errorMsg
             ]);
         }
-
-        foreach ($events as $event) {
-            $line_user_id = $event->getUserId();
-
-            if ($event instanceof MessageEvent) {
-                $text = $event->getText();
-
-                switch ($text) {
-                    case '記帳清單' :
-                        $this->bot->replyMessage($event->getReplyToken(), new TextMessageBuilder($line_user_id));
-                        break;
-                    default :
-                        $this->bot->replyMessage($event->getReplyToken(), new TextMessageBuilder($text));
-                        break;
-                }
-            }
-
-//            if ($event instanceof FollowEvent) {
-//                $user = new User;
-//
-//                $user->uid = $line_user_id;
-//
-//                $user->save();
-//            } elseif ($event instanceof UnfollowEvent) {
-//                $users = User::query()
-//                    ->where('uid', $line_user_id)
-//                    ->get();
-//
-//                Log::info(json_encode($users));
-//            }
-        }
-
-        return response()->json([
-            'status' => true
-        ]);
     }
 }
