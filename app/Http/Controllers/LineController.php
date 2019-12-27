@@ -29,9 +29,4 @@ class LineController extends Controller
             ]);
         }
     }
-
-    public function webhook1(Request $request)
-    {
-        $this->lineBotService->webhook1($request);
-    }
 }

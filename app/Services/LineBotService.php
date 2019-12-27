@@ -4,35 +4,46 @@
 namespace App\Services;
 
 use App\models\TodoList;
+use App\Repositories\TodoListRepository;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Redis;
 use LINE\LINEBot\Event\MessageEvent;
 use LINE\LINEBot\Event\PostbackEvent;
 use LINE\LINEBot\MessageBuilder;
 use LINE\LINEBot\MessageBuilder\TextMessageBuilder;
 use LINE\LINEBot\MessageBuilder\TemplateMessageBuilder;
+use LINE\LINEBot\MessageBuilder\FlexMessageBuilder;
+use LINE\LINEBot\MessageBuilder\Flex\ContainerBuilder\BubbleContainerBuilder;
+use LINE\LINEBot\MessageBuilder\Flex\ContainerBuilder\CarouselContainerBuilder;
+use LINE\LINEBot\MessageBuilder\Flex\ComponentBuilder\BoxComponentBuilder;
+use LINE\LINEBot\MessageBuilder\Flex\ComponentBuilder\TextComponentBuilder;
+use LINE\LINEBot\MessageBuilder\Flex\ComponentBuilder\ButtonComponentBuilder;
 use LINE\LINEBot\Response;
 use LINE\LINEBot\TemplateActionBuilder\MessageTemplateActionBuilder;
 use LINE\LINEBot\TemplateActionBuilder\PostbackTemplateActionBuilder;
 use LINE\LINEBot\TemplateActionBuilder\UriTemplateActionBuilder;
 use LINE\LINEBot\MessageBuilder\TemplateBuilder\ImageCarouselColumnTemplateBuilder;
 use LINE\LINEBot\MessageBuilder\TemplateBuilder\ImageCarouselTemplateBuilder;
-use LINE\LINEBot\MessageBuilder\TemplateBuilder;
+use LINE\LINEBot\MessageBuilder\TemplateBuilder\ConfirmTemplateBuilder;
 use LINE\LINEBot\MessageBuilder\TemplateBuilder\ButtonTemplateBuilder;
+use LINE\LINEBot\MessageBuilder\TemplateBuilder;
 
 class LineBotService
 {
     private $lineUserId;
     private $lineBot;
     private $reptileService;
+    private $todoListRepository;
 
     public $errorMsg;
 
-    public function __construct(string $lineUserId, ReptileService $reptileService)
+    public function __construct(string $lineUserId, ReptileService $reptileService, TodoListRepository $todoListRepository)
     {
         $this->lineUserId = $lineUserId;
         $this->lineBot = app('LineBot');
         $this->reptileService = $reptileService;
+        $this->todoListRepository = $todoListRepository;
     }
 
     public function webhook(Request $request)
@@ -59,7 +70,7 @@ class LineBotService
                     case 'create' :
                         $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder('新增成功!!'));
                         Redis::hdel($line_user_id, 'action');
-                        TodoList::create([
+                        $this->todoListRepository->createTodoList([
                             'user_id' => $line_user_id,
                             'event' => $text,
                             'enable' => 'N'
@@ -69,80 +80,47 @@ class LineBotService
                         $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder($line_user_id));
                         break;
                 }
-
-//                switch ($text) {
-//                    case '記帳清單' :
-//                        $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder($line_user_id));
-//                        break;
-//                    case '天氣' :
-//                        $originalData = $this->reptileService->getOriginalData(config('linebot.url.weather'));
-//                        $list = collect($this->reptileService->getWeather($originalData));
-//                        $list->map(function ($item, $key) use ($event) {
-//                            switch ($key) {
-//                                case 'city':
-//                                    $item = '地區 : '. $item;
-//                                    break;
-//                                case 'temperature':
-//                                    $item = '溫度 : '. $item;
-//                                    break;
-//                                case 'phrase':
-//                                    $item = '氣候 : '. $item;
-//                                    break;
-//                                case 'hilo':
-//                                    $item = '內容 : '. $item;
-//                                    break;
-//                                default:
-//                                    $item = 'error!!!';
-//                                    break;
-//                            }
-//
-//                            $this->pushMessage($item);
-////                            $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder($item));
-//                        });
-//                        break;
-//                    default :
-//                        $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder($text));
-//                        break;
-//                }
             } else if ($event instanceof PostbackEvent) {
+                $message = '';
+                $dataArr = [];
                 $data = $event->getPostbackData();
-                switch ($data) {
-                    case 'showTodo' :
-                        $message = $this->buildTodoListTemplateMessageBuilder();
-                        $this->lineBot->replyMessage($event->getReplyToken(), $message);
-                        break;
+                $tmp = explode('&', $data);
+                foreach ($tmp as $item) {
+                    $tmpArr = explode('=', $item);
+                    $dataArr[$tmpArr[0]] = $tmpArr[1];
+                }
+                switch ($dataArr['action']) {
                     case 'createTodoList' :
                         Redis::hset($line_user_id, 'action', 'create');
                         Redis::expire($line_user_id, 120);
-                        $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder('請輸入待辦事件'));
+                        $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder('請輸入待辦事項'));
                         break;
                     case 'showTodoList' :
-                        $todoList = TodoList::select('event','enable')->where('user_id',$line_user_id)->get();
-
+                        $todoList = $this->todoListRepository->showTodoListByUser_Id($line_user_id);
+                        if($todoList === null) {
+                            $message = new TextMessageBuilder('無待辦事項，請先新增!');
+                        }
+                        $message = $this->buildTodoListFlexMessage($todoList);
+                        $this->lineBot->replyMessage($event->getReplyToken(), $message);
+                        break;
+                    case 'completeTodoList' :
+                        $updateData = ['enable' => 'Y'];
+                        $this->todoListRepository->updateTodoListById($updateData, $line_user_id, $dataArr['event_id']);
+                        $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder('完成!!'));
+                        break;
+                    case 'deleteTodoList' :
+                        $this->todoListRepository->deleteTodoListById($line_user_id, $dataArr['event_id']);
+                        $this->lineBot->replyMessage($event->getReplyToken(), new TextMessageBuilder('已刪除!!'));
                         break;
                     default :
                         break;
                 }
-                $this->errorMsg = $data;
+                $this->errorMsg = $message;
                 return false;
             }
         }
-        $this->errorMsg = '123';
-        return false;
 
         return true;
-    }
-
-    public function webhook1()
-    {
-//        $a = Redis::hset('1','2', '3');
-//        $a = Redis::hset('10','20', '30');
-//        Redis::hdel('1', '2');
-//        TodoList::create([
-//            'user_id' => '456',
-//            'event' => '87'
-//        ]);
-        dd(132);
     }
 
     /**
@@ -177,14 +155,48 @@ class LineBotService
         );
     }
 
-    public function buildTodoListTemplateMessageBuilder(string $notificationText = '新通知來囉!')
+    public function buildTodoListMeanTemplateMessageBuilder(string $notificationText = '新通知來囉!'): MessageBuilder
     {
-        $createTodoList = new PostbackTemplateActionBuilder('新增待辦事項','createTodoList');
-        $showTodoList = new PostbackTemplateActionBuilder('顯示待辦事項','showTodoList');
+        $createTodoList = new PostbackTemplateActionBuilder('新增待辦事項','action=createTodoList');
+        $showTodoList = new PostbackTemplateActionBuilder('顯示待辦事項','action=showTodoList');
 
         return new TemplateMessageBuilder(
             $notificationText,
             new ButtonTemplateBuilder('1', '2', '', [$createTodoList, $showTodoList])
+        );
+    }
+
+    public function buildTodoListFlexMessage(Collection $payload, string $notificationText = '新通知來囉!')
+    {
+        $ContainerBuilder = $payload->map(function ($items) {
+            $bodyTextComponentBuilder[] = new TextComponentBuilder($items['event'], null, null, 'xl', 'center', null, null, null, 'bold');
+            $bodyComponentBuilder = new BoxComponentBuilder(
+                'vertical',
+                $bodyTextComponentBuilder
+            );
+
+            if($items['enable'] === 'N') {
+                $statusTodoList = new PostbackTemplateActionBuilder('完成','action=completeTodoList&event_id='.$items['id']);
+                $style = 'primary';
+            } else {
+                $statusTodoList = new PostbackTemplateActionBuilder('已完成','action=completedTodoList&event_id='.$items['id']);
+                $style = 'secondary';
+            }
+            $deleteTodoList = new PostbackTemplateActionBuilder('刪除','action=deleteTodoList&event_id='.$items['id']);
+
+            $footerButtonComponentBuilder[] = new ButtonComponentBuilder($statusTodoList, null, null, 'sm', $style, null, null);
+            $footerButtonComponentBuilder[] = new ButtonComponentBuilder($deleteTodoList, null, null, 'sm', 'primary', null, null);
+            $footerComponentBuilder = new BoxComponentBuilder(
+                'horizontal',
+                $footerButtonComponentBuilder
+            );
+
+            return new BubbleContainerBuilder(null, null, null, $bodyComponentBuilder, $footerComponentBuilder, null, 'mega');
+        })->toArray();
+
+        return new FlexMessageBuilder(
+            $notificationText,
+            new CarouselContainerBuilder($ContainerBuilder)
         );
     }
 }

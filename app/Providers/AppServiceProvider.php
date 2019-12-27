@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\models\TodoList;
+use App\Repositories\TodoListRepository;
 use App\Services\LineBotService;
 use App\Services\ReptileService;
 use Illuminate\Support\ServiceProvider;
@@ -41,7 +43,8 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->singleton(LineBotService::class, function () {
             $reptileService = new ReptileService();
-            return new LineBotService(config('linebot.channel.line_user_id'), $reptileService);
+            $todoListRepository = new TodoListRepository(new TodoList());
+            return new LineBotService(config('linebot.channel.line_user_id'), $reptileService, $todoListRepository);
         });
     }
 }
