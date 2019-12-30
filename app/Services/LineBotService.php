@@ -125,6 +125,7 @@ class LineBotService
 
     public function webhook1(Request $request)
     {
+        dd(Redis::info());
         $signature = $request->header(\LINE\LINEBot\Constant\HTTPHeader::LINE_SIGNATURE);
         $body = $request->getContent();
 
