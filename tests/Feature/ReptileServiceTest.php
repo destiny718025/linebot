@@ -49,8 +49,11 @@ class ReptileServiceTest extends TestCase
     {
         $crawler = $this->reptileService->getOriginalData('http://99770.hhxxee.com/comic/29433/');
         $target = collect($this->reptileService->getComic($crawler));
+//        $target[] = collect($this->reptileService->getComic($crawler))[0];
+//        $message = $this->lineBotService->buildTemplateMessageBuilder($target);
+//        $this->lineBotService->pushMessage($message);
 
-        $target->map(function ($items, $key) {
+        $target->map(function ($items) {
             $this->assertArrayHasKey('date', $items);
             $this->assertArrayHasKey('directUri', $items);
             $this->assertArrayHasKey('imagePath', $items);
