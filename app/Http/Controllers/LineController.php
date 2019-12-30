@@ -29,4 +29,13 @@ class LineController extends Controller
             ]);
         }
     }
+
+    public function webhook1(Request $request)
+    {
+        $this->lineBotService->webhook1();
+        return response()->json([
+            'status' => false,
+            'message' => $this->lineBotService->errorMsg
+        ]);
+    }
 }

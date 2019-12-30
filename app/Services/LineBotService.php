@@ -123,6 +123,11 @@ class LineBotService
         return true;
     }
 
+    public function webhook1()
+    {
+        
+    }
+
     /**
      * @param MessageBuilder|string $content
      * @return Response

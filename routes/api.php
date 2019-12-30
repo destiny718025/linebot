@@ -18,3 +18,4 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });
 
 Route::Post('webhook', 'LineController@webhook');
+Route::Post('webhook', 'LineController@webhook1');
